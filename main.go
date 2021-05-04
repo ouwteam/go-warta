@@ -2,10 +2,8 @@ package main
 
 import (
 	"context"
-	"database/sql"
 	"flag"
 	"fmt"
-	"go-warta/src/database"
 	"go-warta/src/route"
 	"log"
 	"net/http"
@@ -13,14 +11,15 @@ import (
 	"os/signal"
 	"time"
 
+	_ "github.com/go-sql-driver/mysql"
 	"github.com/gorilla/mux"
+	"github.com/jmoiron/sqlx"
 	"github.com/joho/godotenv"
 )
 
 func main() {
 	godotenv.Load()
-	APPDB := database.Connection
-	APPDB, err := sql.Open("sqlite3", "./database.db")
+	APPDB, err := sqlx.Open("mysql", fmt.Sprintf("%s:%s@tcp(%s:%s)/%s?parseTime=true", os.Getenv("DB_USER"), os.Getenv("DB_PASS"), os.Getenv("DB_HOST"), os.Getenv("DB_PORT"), os.Getenv("DB_NAME")))
 	if err != nil {
 		panic(err.Error())
 	}
@@ -29,7 +28,7 @@ func main() {
 	flag.DurationVar(&wait, "graceful-timeout", time.Second*15, "the duration for which the server gracefully wait for existing connections to finish - e.g. 15s or 1m")
 	flag.Parse()
 
-	routeMain := route.NewRouteMain()
+	routeMain := route.NewRouteMain(APPDB)
 
 	r := mux.NewRouter()
 	r.HandleFunc("/", routeMain.HandleMain)
