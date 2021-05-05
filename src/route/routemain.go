@@ -1,7 +1,6 @@
 package route
 
 import (
-	"bytes"
 	"encoding/json"
 	"fmt"
 	"go-warta/src/api_param"
@@ -9,7 +8,6 @@ import (
 	"go-warta/src/entity"
 	"go-warta/src/helper"
 	"go-warta/src/usecase"
-	"io/ioutil"
 	"net/http"
 	"os"
 	"strconv"
@@ -38,9 +36,6 @@ func (route *RouteMain) HandleSendMessage(rw http.ResponseWriter, r *http.Reques
 	mResponse := helper.NewResponse(r, rw)
 	chat_id, _ := strconv.Atoi(r.URL.Query().Get("chat_id"))
 	text := r.URL.Query().Get("text")
-	var Output entity.Response
-	var err error
-
 	var Payload = &api_param.SendMessage{
 		ChatID: int64(chat_id),
 		Text:   text,
@@ -54,14 +49,16 @@ func (route *RouteMain) HandleSendMessage(rw http.ResponseWriter, r *http.Reques
 		},
 	}
 
-	var reqBody, _ = json.Marshal(Payload)
-	Address = Address + BotID + "/sendMessage"
-	request, err := http.Post(Address, "application/json", bytes.NewBuffer(reqBody))
+	Sender := &usecase.SendMessage{
+		Address: Address,
+		BotID:   BotID,
+	}
+
+	err := Sender.Send(Payload)
 	if err != nil {
-		Output = entity.Response{
+		Output := &entity.Response{
 			Info:    false,
 			Message: err.Error(),
-			Content: nil,
 		}
 
 		b, _ := json.Marshal(Output)
@@ -69,24 +66,9 @@ func (route *RouteMain) HandleSendMessage(rw http.ResponseWriter, r *http.Reques
 		return
 	}
 
-	defer request.Body.Close()
-	body, err := ioutil.ReadAll(request.Body)
-	if err != nil {
-		Output = entity.Response{
-			Info:    false,
-			Message: err.Error(),
-			Content: nil,
-		}
-
-		b, _ := json.Marshal(Output)
-		mResponse.ResponseBadRequest(b)
-		return
-	}
-
-	Output = entity.Response{
+	Output := &entity.Response{
 		Info:    true,
 		Message: "",
-		Content: string(body),
 	}
 
 	b, _ := json.Marshal(Output)
