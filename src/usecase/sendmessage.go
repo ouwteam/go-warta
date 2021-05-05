@@ -3,7 +3,10 @@ package usecase
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
+	"fmt"
 	"go-warta/src/api_param"
+	"go-warta/src/api_response"
 	"io/ioutil"
 	"net/http"
 )
@@ -22,9 +25,19 @@ func (s *SendMessage) Send(Payload *api_param.SendMessage) error {
 	}
 
 	defer request.Body.Close()
-	_, err = ioutil.ReadAll(request.Body)
+	res, err := ioutil.ReadAll(request.Body)
 	if err != nil {
 		return err
+	}
+
+	var Response api_response.SendMessage
+	if err = json.Unmarshal(res, &Response); err != nil {
+		fmt.Println("Parse response failed")
+		return err
+	}
+
+	if !Response.Ok {
+		return errors.New(Response.Description)
 	}
 
 	return nil

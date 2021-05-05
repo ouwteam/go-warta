@@ -27,7 +27,56 @@ func (c *GetUpdateConsumer) Consume() bool {
 	var LastID int64
 	for _, item := range *c.Reponse.Result {
 		if item.CallbackQuery != nil {
-			fmt.Println("a callback")
+			if item.CallbackQuery.Message.Text != "Choose channel" {
+				continue
+			}
+
+			ChatID := item.CallbackQuery.Message.Chat.ID
+			Channel := item.CallbackQuery.Data
+
+			Row, _ := c.DB.Queryx("select * from channels where code = ?", Channel)
+			if !Row.Next() {
+				// skip. Channel not found
+				fmt.Println("skip. Channel not found")
+				LastID = int64(item.UpdateID)
+				continue
+			}
+			var EChannel entity.Channel
+			Row.StructScan(&EChannel)
+
+			Row, _ = c.DB.Queryx("select * from user_channels where chat_id = ? and channel_code = ?", ChatID, Channel)
+			if Row.Next() {
+				// skip. already registered
+				fmt.Println("skip. already registered")
+				LastID = int64(item.UpdateID)
+				continue
+			}
+
+			_, err := c.DB.Exec("insert into user_channels (chat_id, channel_code) values (?, ?)", ChatID, Channel)
+			if err != nil {
+				// skip. insert error
+				fmt.Println("skip. insert error")
+				LastID = int64(item.UpdateID)
+				continue
+			}
+
+			var Payload = &api_param.SendMessage{
+				ChatID: int64(ChatID),
+				Text:   "Now you listen for " + EChannel.Name,
+			}
+
+			Address := os.Getenv("BOT_ADDRESS")
+			BotID := os.Getenv("BOT_ID")
+			Sender := &SendMessage{
+				Address: Address,
+				BotID:   BotID,
+			}
+
+			err = Sender.Send(Payload)
+			if err != nil {
+				fmt.Println(err.Error())
+				return false
+			}
 		}
 
 		if item.Message != nil {
@@ -35,7 +84,6 @@ func (c *GetUpdateConsumer) Consume() bool {
 				chat_id := item.Message.Chat.ID
 				username := item.Message.Chat.Username
 
-				fmt.Println("step 1 :")
 				// step 1. Register the user
 				Tx, err := c.Beginx()
 				if err != nil {
