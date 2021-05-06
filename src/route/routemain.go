@@ -10,7 +10,6 @@ import (
 	"go-warta/src/usecase"
 	"net/http"
 	"os"
-	"strconv"
 
 	"github.com/jmoiron/sqlx"
 )
@@ -34,31 +33,14 @@ func (route *RouteMain) HandleSendMessage(rw http.ResponseWriter, r *http.Reques
 	Address := os.Getenv("BOT_ADDRESS")
 	BotID := os.Getenv("BOT_ID")
 	mResponse := helper.NewResponse(r, rw)
-	chat_id, _ := strconv.Atoi(r.URL.Query().Get("chat_id"))
 	text := r.URL.Query().Get("text")
-	var Payload = &api_param.SendMessage{
-		ChatID: int64(chat_id),
-		Text:   text,
-		ReplyMarkup: &api_param.ReplyMarkup{
-			InlineKeyboard: &[][]api_param.InlineButton{
-				{
-					api_param.InlineButton{Text: "test 1", CallbackData: "test 1"},
-					api_param.InlineButton{Text: "test 2", CallbackData: "test 2"},
-				},
-			},
-		},
-	}
+	channel_code := r.URL.Query().Get("channel")
 
-	Sender := &usecase.SendMessage{
-		Address: Address,
-		BotID:   BotID,
-	}
-
-	err := Sender.Send(Payload)
+	Rows, err := route.DB.Queryx("select * from user_channels where channel_code = ?", channel_code)
 	if err != nil {
 		Output := &entity.Response{
 			Info:    false,
-			Message: err.Error(),
+			Message: "no user channel found for the channel",
 		}
 
 		b, _ := json.Marshal(Output)
@@ -66,9 +48,32 @@ func (route *RouteMain) HandleSendMessage(rw http.ResponseWriter, r *http.Reques
 		return
 	}
 
+	defer Rows.Close()
+	for Rows.Next() {
+		var userChannel entity.UserChannel
+		Rows.StructScan(&userChannel)
+
+		go func(mUserChannel *entity.UserChannel) {
+			var Payload = &api_param.SendMessage{
+				ChatID: mUserChannel.ChatID,
+				Text:   text,
+			}
+
+			Sender := &usecase.SendMessage{
+				Address: Address,
+				BotID:   BotID,
+			}
+
+			err = Sender.Send(Payload)
+			if err != nil {
+				fmt.Println(err.Error())
+			}
+		}(&userChannel)
+	}
+
 	Output := &entity.Response{
 		Info:    true,
-		Message: "",
+		Message: "Added to queue",
 	}
 
 	b, _ := json.Marshal(Output)

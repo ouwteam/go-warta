@@ -20,10 +20,6 @@ func (c *GetUpdateConsumer) Consume() bool {
 		return false
 	}
 
-	/**
-	TODO :
-	- kirim balikan setelah callback di consume
-	*/
 	var LastID int64
 	for _, item := range *c.Reponse.Result {
 		if item.CallbackQuery != nil {
