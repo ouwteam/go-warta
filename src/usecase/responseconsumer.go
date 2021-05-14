@@ -162,6 +162,49 @@ func (c *GetUpdateConsumer) Consume() bool {
 					return false
 				}
 			}
+
+			if item.Message.Text == "/unsub" {
+				Tx, err := c.Begin()
+				if err != nil {
+					return false
+				}
+
+				chat_id := item.Message.Chat.ID
+				res, err := Tx.Exec("delete from user_channels where chat_id = ?", chat_id)
+				if err != nil {
+					Tx.Rollback()
+					return false
+				}
+
+				i, err := res.RowsAffected()
+				if err != nil {
+					Tx.Rollback()
+					return false
+				}
+
+				if i > 0 {
+					Tx.Commit()
+				}
+
+				var Payload = &api_param.SendMessage{
+					ChatID: int64(chat_id),
+					Text:   "You can subscribe to DMS channels anytime :)",
+				}
+
+				Address := os.Getenv("BOT_ADDRESS")
+				BotID := os.Getenv("BOT_ID")
+				Sender := &SendMessage{
+					Address: Address,
+					BotID:   BotID,
+				}
+
+				err = Sender.Send(Payload)
+				if err != nil {
+					fmt.Println(err.Error())
+				}
+
+				return i > 0
+			}
 		}
 
 		LastID = int64(item.UpdateID)
